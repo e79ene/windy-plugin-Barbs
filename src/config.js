@@ -1,4 +1,4 @@
 module.exports = {
-    displayName: 'XXX',
+    displayName: 'Wind Barbs',
     hook: 'menu',
 };

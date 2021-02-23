@@ -1,11 +1,182 @@
 <plugin>
-    <b>This plugin will rock</b>
-
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        id="barb-svg-source"
+        class="barb-icon"
+        style="stroke: black; stroke-width: 6"
+        viewBox="-50 -150 100 300"
+        width="40"
+        height="120"
+    >
+    <line
+        x1="0"
+        y1="0"
+        x2="0"
+        y2="-78" />
+    <line
+        class="barb-feather-long"
+        x1="-2"
+        y1="-75"
+        x2="38"
+        y2="-91" />
+    <line
+        class="barb-feather-short"
+        x1="-2"
+        y1="-60"
+        x2="25"
+        y2="-71" />
+    <path
+        d="m -0,-81 0,-27 32,-10 z"
+        class="barb-flag" />
+    </svg>
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        id="barb-svg-zero"
+        class="barb-icon"
+        style="stroke: black; stroke-width: 6; fill: none"
+        viewBox="-50 -150 100 300"
+        width="40"
+        height="120"
+    >
+    <circle
+        r="20"
+        cx="0"
+        cy="0" />
+    </svg>
     <script>
-        console.log('I am mounted to the page');
+        import $ from '@windy/$';
+        import map from '@windy/map';
+        import store from '@windy/store';
+        import utils from '@windy/utils';
+        import broadcast from '@windy/broadcast';
+        import interpolator from '@windy/interpolator';
 
-        this.onopen = () => console.log('I am opened');
+        const barbSource = $('#windy-plugin-barbs #barb-svg-source');
+        const barbZero = $('#windy-plugin-barbs #barb-svg-zero');
 
-        this.onclose = () => console.log('I am being closed');
+        const shiftElement = (element, yStep) => {
+            element.setAttribute('transform', `translate(0, ${yStep})`);
+        }
+
+        const buildBarb = (barbSource, kts) => {
+            const totalFives = Math.round(kts / 5);
+            if (totalFives < 1) {
+                return barbZero;
+            }
+
+            const
+                featherStep = 15,
+                flagStep = -30,
+                fifties = Math.floor(totalFives / 10),
+                fives = totalFives % 10,
+                tens = Math.floor(fives / 2),
+                needShort = fives % 2;
+
+            const barb = barbSource.cloneNode(true),
+                short = $('.barb-feather-short', barb),
+                long = $('.barb-feather-long', barb),
+                flag = $('.barb-flag', barb);
+
+            short.remove();
+            long.remove();
+            flag.remove();
+
+            for (let i = 0; i < fifties; i++) {
+                i > 0 && shiftElement(flag, i * flagStep);
+                barb.append(flag.cloneNode(true));
+            }
+
+            for (let i = 0; i < tens; i++) {
+                i > 0 && shiftElement(long, i * featherStep);
+                barb.append(long.cloneNode(true));
+            }
+            
+            if (needShort) {
+                tens > 1 && shiftElement(short, (tens - 1) * featherStep);
+                barb.append(short);
+            }
+
+            return barb;
+        }
+
+        const barbIcons = [];
+
+        const getBarbIcon = (kts) => {
+            const fives = Math.round(kts / 5);
+
+            if (typeof barbIcons[fives] === 'undefined') {
+                barbIcons[fives] = L.divIcon({
+                    className: 'barb-div-icon',
+                    html: buildBarb(barbSource, kts).outerHTML,
+                    iconSize: [40, 120],
+                    iconAnchor:[20, 60]
+                });
+            }
+
+            return barbIcons[fives];
+        }
+
+        let markers = [];
+
+        const clearBarbs = () => {
+            markers.forEach(l => map.removeLayer(l));
+            markers = [];
+        };
+        
+        const updateBarbs = () => interpolator(interFun => {
+            clearBarbs();
+
+            if (store.get('overlay') !== 'wind') {
+                return;
+            }
+
+            const bounds = map.getBounds();
+            const step = 90 / (2 ** map.getZoom());
+            let ok = true;
+
+            const toGrid = (value, step) => Math.ceil(value / step) * step;
+
+            for (let lat = toGrid(bounds.getSouth(), step);
+                    lat <= bounds.getNorth(); lat += step)
+            {
+                for (let lon = toGrid(bounds.getWest(), step);
+                        lon <= bounds.getEast(); lon += step)
+                {
+                    const values = interFun({lat, lon});
+                    
+                    if (Array.isArray(values)) {
+                        const {wind, dir} = utils.wind2obj(values);
+                        const kts = Math.round(wind * 1.94384);
+                        const marker = L.marker(
+                            [lat, lon],
+                            {
+                                icon: getBarbIcon(kts),
+                                zIndexOffset: -1000, // show barbs behind picker
+                            }
+                        ).addTo(map);
+                        const icon = $('.barb-icon', marker._icon)
+                        icon.style.transform = `rotateZ(${dir}deg)`;
+                        markers.push(marker);
+                    } else {
+                        ok = false;
+                    }
+                    
+                    if (!ok) {
+                        console.warn('Failed to get interpolated wind for some points!');
+                    }
+                }
+            }
+        });
+
+        this.onopen = () => {
+            broadcast.on('redrawFinished', updateBarbs);
+            store.set('overlay', 'wind');
+            updateBarbs();
+        };
+        
+        this.onclose = () => {
+            broadcast.off('redrawFinished', updateBarbs);
+            clearBarbs();
+        };
     </script>
 </plugin>

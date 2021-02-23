@@ -1,16 +1,16 @@
 {
-    "name": "XXX",
-    "version": "0.1.0",
-    "description": "XXX.",
+    "name": "windy-plugin-barbs",
+    "version": "0.1.5",
+    "description": "Windy plugin for wind barbs.",
     "main": "dist/plugin.js",
     "scripts": {
         "start": "node ./compiler.js --build --watch --serve --transpile"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/XXX"
+        "url": "git+https://github.com/e79ene/windy-plugin-barbs"
     },
-    "author": "XXX",
+    "author": "Eugene S. Ostrovsky",
     "license": "MIT",
     "devDependencies": {
         "@babel/core": "^7.1.2",
